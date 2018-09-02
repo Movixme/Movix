@@ -89,7 +89,7 @@ def read_site_html(url_link):
     '''
     headers = {
 
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:58.0) Gecko/20100101 Firefox/58.0',
+    'User-Agent': 'MOVIX-KODI',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
     'Connection': 'keep-alive',
@@ -197,29 +197,54 @@ def play(name,url,image,plot):
     
     regex='<iframe.+?src="(.+?)"'
     match=re.compile(regex).findall(html)
+   
+     
     all_links=[]
     all_names=[]
+    
+    
+    for links in match:
+      regex='//(.+?)/'
+      match_s=re.compile(regex).findall(links)[0]
+      if 'youtube' in match_s:
+        all_names.append('[COLOR teal][I]טריילר[/I][/COLOR]')
+      else:
+        all_names.append(match_s)
+      all_links.append(links)
+     
+    regex='<div class="btn-group btn-group-justified embed-selector">(.+?)<script>'
+    match_in_pre=re.compile(regex,re.DOTALL).findall(html)
+    for items in match_in_pre:
+        regex_pre='a href="(.+?)"'
+        match_in=re.compile(regex_pre).findall(items)
+        for links in match_in:
+          regex='//(.+?)/'
+          match_s=re.compile(regex).findall(links)[0]
+          all_names.append(match_s)
+          all_links.append(links)
     if len(match)==0:
        xbmcgui.Dialog().ok('Movix', 'אין מקורות')
        sys.exit()
     if len(match)>1:
-       for links in match:
-         regex='//(.+?)/'
-         match_s=re.compile(regex).findall(links)[0]
-         if 'youtube' in match_s:
-           all_names.append('[COLOR teal][I]טריילר[/I][/COLOR]')
-         else:
-           all_names.append(match_s.replace('openload','uptostream'))
-         all_links.append(links)
        ret=xbmcgui.Dialog().select("בחר מקור", all_names)
        if ret!=-1:
          f_link=all_links[ret]
        else:
         sys.exit()
     else:
-       f_link=match[0]
+        f_link=match[0]
+    if 'gounlimited' in f_link:
+       x=read_site_html(f_link)
+       regex="<script type='text/javascript'>(.+?)</script>"
+       match=re.compile(regex,re.DOTALL).findall(x)
+       from jsunpack import unpack
+       holder = unpack(match[0])
+       regex='sources.+?"(.+?)"'
+       match=re.compile(regex).findall(holder)
+       link=match[0]
+    else:
     
-    link =resolveurl.resolve(f_link)
+       link =resolveurl.resolve(f_link)
     video_data={}
     video_data['title']=name
     video_data['icon']=image

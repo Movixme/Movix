@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="repository.movix" name="[COLOR gold]Movix[/COLOR] [COLOR gold]Repo[/COLOR]" version="1.0.2" provider-name="Movix">
+<addon id="repository.movix" name="[COLOR gold]Movix[/COLOR] [COLOR gold]Repo[/COLOR]" version="1.0.3" provider-name="Movix">
         <extension point="xbmc.addon.repository" name="Movix Repository">
                 <info compressed="false">http://raw.github.com/Movixme/Movix/master/addons.xml</info>
                 <checksum>http://raw.github.com/Movixme/Movix/master/addons.xml.md5</checksum>

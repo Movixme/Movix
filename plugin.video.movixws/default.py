@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-import HTMLParser,xbmcaddon,os,xbmc,xbmcgui,urllib,urllib2,re,xbmcplugin,sys,logging
+import HTMLParser,xbmcaddon,os,xbmc,xbmcgui,urllib,urllib2,re,xbmcplugin,sys,logging,json
 __USERAGENT__ = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.97 Safari/537.11'
 __addon__ = xbmcaddon.Addon()
 __cwd__ = xbmc.translatePath(__addon__.getAddonInfo('path')).decode("utf-8")
 Addon = xbmcaddon.Addon()
 user_dataDir = xbmc.translatePath(Addon.getAddonInfo("profile")).decode("utf-8")
+import cache
 if not os.path.exists(user_dataDir):
      os.makedirs(user_dataDir)
 
@@ -80,7 +81,7 @@ def addLink( name, url,mode,isFolder, iconimage,fanart,description,data=''):
           xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz,isFolder=isFolder)
 
 
-def read_site_html(url_link):
+def read_site_html(url_link,cookies={}):
     import requests
     '''
     req = urllib2.Request(url_link)
@@ -95,13 +96,21 @@ def read_site_html(url_link):
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
     }
-    html=requests.get(url_link,headers=headers)
+    html=requests.get(url_link,headers=headers,cookies=cookies)
     return html.content
 def replace_all_names(name):
     na=name.replace('Home','ראשי').replace('Action','פעולה').replace('Comedy','קומדיה').replace('Crime','פשע').replace('Drama','דרמה').replace('Mystery','מיסטורין').replace('Thriller','מותחן')
     na=na.replace('From. Fiction','מדע בדיוני').replace('Horror','אימה').replace('Animation','אנימציה').replace('Fantasy','פנטסיה').replace('War','מלחמה').replace('Documentary','דוקומנטרי').replace('Family','משפחה').replace('Kids','ילדים').replace('Most Viewed','הנצפים ביותר').replace('Movies','סרטים').replace('Series','סדרות')
     return na
 def main_menu():
+   
+    if len(Addon.getSetting("username"))>0:
+      cookie_member,ok=cache.get(testlogin,12,'real', table='id')
+      if ok:
+        xbmc.executebuiltin((u'Notification(%s,%s)' % ('Movix', 'ברוך הבא לקוח פרימיום'.decode('utf8'))).encode('utf-8'))
+      else:
+        xbmc.executebuiltin((u'Notification(%s,%s)' % ('Movix', 'כשלון בהתחברות!! בדוק פרטי חשבון'.decode('utf8'))).encode('utf-8'))
+        cache.clear(['id'])
     html=read_site_html('http://movix.live/')
     regex='a href="(.+?)">(.+?)</a></li>'
     match=re.compile(regex).findall(html)
@@ -191,48 +200,86 @@ def get_episodes(name,url,image,plot):
         match=re.compile(regex,re.DOTALL).findall(items)
         for link,names in match:
             addLink( names.replace('\n',''), link,3,False, image,image,plot)
+def fix_q(quality):
+    f_q=100
+    if '2160' in quality:
+      f_q=1
+    if '1080' in quality:
+      f_q=2
+    elif '720' in quality:
+      f_q=3
+    elif '480' in quality:
+      f_q=4
+    elif 'hd' in quality.lower() or 'hq' in quality.lower():
+      f_q=5
+    elif '360' in quality or 'sd' in quality.lower():
+      f_q=6
+    elif '240' in quality:
+      f_q=7
+    return f_q
+
 def play(name,url,image,plot):
     import resolveurl
-    html=read_site_html(url)
-    
-    regex='<iframe.+?src="(.+?)"'
-    match=re.compile(regex).findall(html)
+    cookie_member={}
+    if len(Addon.getSetting("username"))>0:
+      cookie_member,ok=cache.get(testlogin,12,'real', table='id')
+      logging.warning(cookie_member)
+    html=read_site_html(url,cookies=(cookie_member))
+   
+    regex='div id="tab(.+?)".+?<iframe.+?src="(.+?)"'
+    match=re.compile(regex,re.DOTALL).findall(html)
    
      
     all_links=[]
     all_names=[]
-    
-    
-    for links in match:
+   
+    all_t=[]
+    for q_tab,links in match:
       regex='//(.+?)/'
       match_s=re.compile(regex).findall(links)[0]
-      if 'youtube' in match_s:
-        all_names.append('[COLOR teal][I]טריילר[/I][/COLOR]')
+      regex_q='div class="les-content"><a href="#tab%s">(.+?)<'%q_tab
+      
+      q_pre=re.compile(regex_q).findall(html)
+      if len(q_pre)>0:
+        q=q_pre[0]
       else:
-        all_names.append(match_s)
-      all_links.append(links)
-     
+        q='0'
+      qu=fix_q(q)
+      if 'youtube' in match_s:
+        
+        all_t.append(('[COLOR teal][I]טריילר[/I][/COLOR]',qu,q,links))
+      else:
+        
+        all_t.append((match_s,qu,q,links))
+      
+      
     regex='<div class="btn-group btn-group-justified embed-selector">(.+?)<script>'
     match_in_pre=re.compile(regex,re.DOTALL).findall(html)
     for items in match_in_pre:
-        regex_pre='a href="(.+?)"'
-        match_in=re.compile(regex_pre).findall(items)
-        for links in match_in:
+        regex_pre='a href="(.+?)".+?<span class="lnk lnk-dl">(.+?)</span'
+        match_in=re.compile(regex_pre,re.DOTALL).findall(items)
+        
+        for links,q in match_in:
           regex='//(.+?)/'
           match_s=re.compile(regex).findall(links)[0]
-          all_names.append(match_s)
-          all_links.append(links)
-    if len(match)==0:
+
+          qu=fix_q(q)
+          all_t.append((match_s,qu,q,links))
+    if len(all_t)==0:
        xbmcgui.Dialog().ok('Movix', 'אין מקורות')
        sys.exit()
-    if len(match)>1:
+    if len(all_t)>1:
+       all_t=sorted(all_t, key=lambda x: x[1], reverse=False)
+       for match_s,qu,q,links in all_t:
+         all_names.append(match_s+' - '+q)
+         all_links.append(links)
        ret=xbmcgui.Dialog().select("בחר מקור", all_names)
        if ret!=-1:
          f_link=all_links[ret]
        else:
         sys.exit()
     else:
-        f_link=match[0]
+        f_link=all_t[0][3]
     if 'gounlimited' in f_link:
        x=read_site_html(f_link)
        regex="<script type='text/javascript'>(.+?)</script>"
@@ -256,6 +303,57 @@ def play(name,url,image,plot):
 
     listItem.setProperty('IsPlayable', 'true')
     ok=xbmcplugin.setResolvedUrl(handle=int(sys.argv[1]), succeeded=True, listitem=listItem)
+def testlogin(url):
+    import requests
+
+    
+    logging.warning('start_login')
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:61.0) Gecko/20100101 Firefox/61.0',
+        'Accept': '*/*',
+        'Accept-Language': 'he,he-IL;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Referer': 'http://movix.live/',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Connection': 'keep-alive',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+    }
+    
+    x=requests.get('http://movix.live/',headers=headers).content
+    regex='name="register-security" value="(.+?)"'
+    sec=re.compile(regex).findall(x)[0]
+    data = [
+      ('pt_user_login', Addon.getSetting("username")),
+      ('pt_user_pass', Addon.getSetting("Password_sdr")),
+      ('action', 'pt_login_member'),
+      ('login-security', sec),
+      ('_wp_http_referer', '/'),
+    ]
+
+    response = requests.post('http://movix.live/wp-admin/admin-ajax.php', headers=headers,  data=data)
+    ok=True
+    if url=='test':
+        if 'Login successful' in response.content:
+            xbmcgui.Dialog().ok('Movix', 'התחברת בהצלחה')
+        else:
+           xbmcgui.Dialog().ok('Movix', 'כישלון! בדוק פרטי התחברות')
+           
+    if 'Login successful' not in response.content:
+      ok=False
+      
+    cook={}
+    if ok:
+        for key, morsel in response.cookies.items():
+                cook[key] = morsel
+   
+    
+    return cook,ok
+def ClearCache():
+   
+    cache.clear(['id'])
+    xbmc.executebuiltin((u'Notification(%s,%s)' % ('Movix', 'נוקה'.decode('utf8'))).encode('utf-8'))
+
 params=get_params()
 
 url=None
@@ -303,6 +401,11 @@ elif mode==4:
         get_episodes(name,url,iconimage,description)
 elif mode==5:
         search()
+elif mode==6:
+    ClearCache()
+elif mode==9:
+      testlogin(url)
+      
 xbmcplugin.setContent(int(sys.argv[1]), 'movies')
 
 

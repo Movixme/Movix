@@ -4,4 +4,7 @@
 	<setting id="Password_sdr" type="text" option = "hidden" label="סיסמא" default=""/>
 	<setting id="test" type="action" label="בדוק פרטי התחברות" action="RunPlugin(plugin://plugin.video.movixws/default.py?mode=9&url=test)" option="close"/>
 	<setting id="clean" type="action" label="נקה קאש" action="RunPlugin(plugin://plugin.video.movixws/default.py?mode=6&url=test)" option="close"/>
+	<setting id="torrent_en" label="הצג מקורות טורנט" type="bool" default="true" />
+	<setting id="players" type="enum" label="בחר נגנים" values="Quasar|Pulsar|KmediaTorrent|Torrenter|YATP|XBMCtorrent|PopcornTime" default="3" />
+	
 </settings>

@@ -169,6 +169,7 @@ def search():
     if len(match)>0:
         addDir3('[COLOR aqua]עמוד הבא[/COLOR]',match[0],2,' ',' ','עמוד הבא')
 def scrape_site(url):
+    
     html=read_site_html(url)
     regex_pre='<div data-movie-id="(.+?)<span></span></a>'
     match_pre=re.compile(regex_pre,re.DOTALL).findall(html)
@@ -202,7 +203,7 @@ def get_episodes(name,url,image,plot):
             addLink( names.replace('\n',''), link,3,False, image,image,plot)
 def fix_q(quality):
     f_q=100
-    if '2160' in quality:
+    if '2160' in quality or '4K' in quality:
       f_q=1
     if '1080' in quality:
       f_q=2
@@ -217,9 +218,297 @@ def fix_q(quality):
     elif '240' in quality:
       f_q=7
     return f_q
+def get_torrent_link(filename):
+    from urllib import quote_plus
+    plugin_p = Addon.getSetting('players')
+    if plugin_p=='0':
+      plugin = 'Quasar'
+    elif plugin_p=='1':
+      plugin = 'Pulsar'
+    elif plugin_p=='2':
+      plugin = 'KmediaTorrent'
+    elif plugin_p=='3':
+      plugin = 'Torrenter'
+    elif plugin_p=='4':
+      plugin = 'YATP'
+    elif plugin_p=='5':
+      plugin = 'XBMCtorrent'
+    elif plugin_p=='6':
+      plugin = 'KODIPOPCORN'
+    list_players = ['Quasar', 'Pulsar', 'KmediaTorrent', 'Torrenter', 'YATP', 'XBMCtorrent','KODIPOPCORN']
+
+    uri_string = quote_plus(filename)
+   
+    if plugin == 'Quasar':
+        link = 'plugin://plugin.video.quasar/play?uri=%s' % uri_string
+
+    elif plugin == 'Pulsar':
+        link = 'plugin://plugin.video.pulsar/play?uri=%s' % uri_string
+
+    elif plugin == 'KmediaTorrent':
+        link = 'plugin://plugin.video.kmediatorrent/play/%s' % uri_string
+
+    elif plugin == "Torrenter":
+        link = 'plugin://plugin.video.torrenter/?action=playSTRM&url=' + uri_string
+
+    elif plugin == "YATP":
+        link = 'plugin://plugin.video.yatp/?action=play&torrent=' + uri_string
+    elif plugin == "KODIPOPCORN":
+        link='plugin://plugin.video.kodipopcorntime/?endpoint=player&amp;720psize=1331439862&amp;1080psize=2566242959&amp;720p='+uri_string+'&amp;mediaType=movies'
+    else:
+        link = 'plugin://plugin.video.xbmctorrent/play/%s' % uri_string
+    return link
+class AADecoder(object):
+    def __init__(self, aa_encoded_data):
+        self.encoded_str = aa_encoded_data.replace('/*´∇｀*/','')
+
+        self.b = ["(c^_^o)", "(ﾟΘﾟ)", "((o^_^o) - (ﾟΘﾟ))", "(o^_^o)",
+                  "(ﾟｰﾟ)", "((ﾟｰﾟ) + (ﾟΘﾟ))", "((o^_^o) +(o^_^o))", "((ﾟｰﾟ) + (o^_^o))",
+                  "((ﾟｰﾟ) + (ﾟｰﾟ))", "((ﾟｰﾟ) + (ﾟｰﾟ) + (ﾟΘﾟ))", "(ﾟДﾟ) .ﾟωﾟﾉ", "(ﾟДﾟ) .ﾟΘﾟﾉ",
+                  "(ﾟДﾟ) ['c']", "(ﾟДﾟ) .ﾟｰﾟﾉ", "(ﾟДﾟ) .ﾟДﾟﾉ", "(ﾟДﾟ) [ﾟΘﾟ]"]
+
+    def is_aaencoded(self):
+        idx = self.encoded_str.find("ﾟωﾟﾉ= /｀ｍ´）ﾉ ~┻━┻   //*´∇｀*/ ['_']; o=(ﾟｰﾟ)  =_=3; c=(ﾟΘﾟ) =(ﾟｰﾟ)-(ﾟｰﾟ); ")
+        if idx == -1:
+            return False
+
+        if self.encoded_str.find("(ﾟДﾟ)[ﾟoﾟ]) (ﾟΘﾟ)) ('_');", idx) == -1:
+            return False
+
+        return True
+
+    def base_repr(self, number, base=2, padding=0):
+        digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        if base > len(digits):
+            base = len(digits)
+
+        num = abs(number)
+        res = []
+        while num:
+            res.append(digits[num % base])
+            num //= base
+        if padding:
+            res.append('0' * padding)
+        if number < 0:
+            res.append('-')
+        return ''.join(reversed(res or '0'))
+
+    def decode_char(self, enc_char, radix):
+        end_char = "+ "
+        str_char = ""
+        while enc_char != '':
+            found = False
+            
+            for i in range(len(self.b)):
+                if enc_char.find(self.b[i]) == 0:
+                    str_char += self.base_repr(i, radix)
+                    enc_char = enc_char[len(self.b[i]):]
+                    found = True
+                    break
+
+            if not found:
+                for i in range(len(self.b)):             
+                    enc_char=enc_char.replace(self.b[i], str(i))
+                
+                startpos=0
+                findClose=True
+                balance=1
+                result=[]
+                if enc_char.startswith('('):
+                    l=0
+                    
+                    for t in enc_char[1:]:
+                        l+=1
+                        if findClose and t==')':
+                            balance-=1;
+                            if balance==0:
+                                result+=[enc_char[startpos:l+1]]
+                                findClose=False
+                                continue
+                        elif not findClose and t=='(':
+                            startpos=l
+                            findClose=True
+                            balance=1
+                            continue
+                        elif t=='(':
+                            balance+=1
+                 
+
+                if result is None or len(result)==0:
+                    return ""
+                else:
+                    
+                    for r in result:
+                        value = self.decode_digit(r, radix)
+                        if value == "":
+                            return ""
+                        else:
+                            str_char += value
+                            
+                    return str_char
+
+            enc_char = enc_char[len(end_char):]
+
+        return str_char
+
+        
+              
+    def decode_digit(self, enc_int, radix):
+
+        #enc_int=enc_int.replace('(ﾟΘﾟ)','1').replace('(ﾟｰﾟ)','4').replace('(c^_^o)','0').replace('(o^_^o)','3')  
+
+        rr = '(\(.+?\)\))\+'
+        rerr=enc_int.split('))+')
+        v = ''
+        
+        #new mode
+        if (True):
+
+            for c in rerr:
+                
+                if len(c)>0:
+                    if c.strip().endswith('+'):
+                        c=c.strip()[:-1]
+
+                    startbrackets=len(c)-len(c.replace('(',''))
+                    endbrackets=len(c)-len(c.replace(')',''))
+                    
+                    if startbrackets>endbrackets:
+                        c+=')'*startbrackets-endbrackets
+                    
+                    #fh = open('c:\\test.txt', "w")
+                    #fh.write(c)
+                    #fh.close()
+                    
+                    c = c.replace('!+[]','1')
+                    c = c.replace('-~','1+')
+                    c = c.replace('[]','0')
+                    
+                    v+=str(eval(c))
+                    
+            return v
+         
+        # mode 0=+, 1=-
+        mode = 0
+        value = 0
+
+        while enc_int != '':
+            found = False
+            for i in range(len(self.b)):
+                if enc_int.find(self.b[i]) == 0:
+                    if mode == 0:
+                        value += i
+                    else:
+                        value -= i
+                    enc_int = enc_int[len(self.b[i]):]
+                    found = True
+                    break
+
+            if not found:
+                return ""
+
+            enc_int = re.sub('^\s+|\s+$', '', enc_int)
+            if enc_int.find("+") == 0:
+                mode = 0
+            else:
+                mode = 1
+
+            enc_int = enc_int[1:]
+            enc_int = re.sub('^\s+|\s+$', '', enc_int)
+
+        return self.base_repr(value, radix)
+
+    def decode(self):
+
+        self.encoded_str = re.sub('^\s+|\s+$', '', self.encoded_str)
+
+        # get data
+        pattern = (r"\(ﾟДﾟ\)\[ﾟoﾟ\]\+ (.+?)\(ﾟДﾟ\)\[ﾟoﾟ\]\)")
+        result = re.search(pattern, self.encoded_str, re.DOTALL)
+        if result is None:
+            print "AADecoder: data not found"
+            return "AADecoder: data not found"
+
+        data = result.group(1)
+
+        # hex decode string
+        begin_char = "(ﾟДﾟ)[ﾟεﾟ]+"
+        alt_char = "(oﾟｰﾟo)+ "
+
+        out = ''
+
+        while data != '':
+            # Check new char
+            if data.find(begin_char) != 0:
+                print "AADecoder: data not found"
+                return "AADecoder: data not found"
+
+            data = data[len(begin_char):]
+
+            # Find encoded char
+            enc_char = ""
+            if data.find(begin_char) == -1:
+                enc_char = data
+                data = ""
+            else:
+                enc_char = data[:data.find(begin_char)]
+                data = data[len(enc_char):]
+
+            
+            radix = 8
+            # Detect radix 16 for utf8 char
+            if enc_char.find(alt_char) == 0:
+                enc_char = enc_char[len(alt_char):]
+                radix = 16
+
+            str_char = self.decode_char(enc_char, radix)
+            
+            if str_char == "":
+                print "no match :  "
+                print  data + "\nout = " + out + "\n"
+                return data + "\nout = " + out + "\n"
+            
+            out += chr(int(str_char, radix))
+
+        if out == "":
+            print "no match : " + data
+            return "no match : " + data
+
+        return out
+def resolve_mystram(url):
+        import requests
+        url=url.replace('mystream.to/watch','mysembed.net')
+        
+        cookies = {
+
+        'ref_url': url,
+
+        }
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': url,
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'TE': 'Trailers',
+        }
+
+        response = requests.get(url, headers=headers, cookies=cookies).content
+        
+        regex='<script>(.+?)</script>'
+        flink=re.compile(regex).findall(response)[0]
+        data=(AADecoder(flink).decode())
+        logging.warning(data)
+        regex="'src', '(.+?)'"
+        flink=re.compile(regex).findall(data)[0]
+        return flink
 
 def play(name,url,image,plot):
     import resolveurl
+    
     cookie_member={}
     if len(Addon.getSetting("username"))>0:
       cookie_member,ok=cache.get(testlogin,12,'real', table='id')
@@ -256,15 +545,26 @@ def play(name,url,image,plot):
     regex='<div class="btn-group btn-group-justified embed-selector">(.+?)<script>'
     match_in_pre=re.compile(regex,re.DOTALL).findall(html)
     for items in match_in_pre:
-        regex_pre='a href="(.+?)".+?<span class="lnk lnk-dl">(.+?)</span'
+        regex_pre='a href="(.+?)".+?"lang_tit".+?"lnk lnk-dl.+?>(.+?)</span'
+                  
         match_in=re.compile(regex_pre,re.DOTALL).findall(items)
         
         for links,q in match_in:
-          regex='//(.+?)/'
-          match_s=re.compile(regex).findall(links)[0]
+          logging.warning(links)
+          if 'magnet:' in links or '.torrent' in links:
+            match_s='Torrent'
+          else:
+              regex='//(.+?)/'
+              match_s=re.compile(regex).findall(links)[0]
 
           qu=fix_q(q)
-          all_t.append((match_s,qu,q,links))
+          if 'subtitle' not in links:
+            if  'magnet:' in links or '.torrent' in links:
+               if Addon.getSetting("torrent_en") and 'magnet:' in links:
+                links=get_torrent_link(links)
+                all_t.append((match_s,qu,q,links))
+            else:
+               all_t.append((match_s,qu,q,links))
     if len(all_t)==0:
        xbmcgui.Dialog().ok('Movix', 'אין מקורות')
        sys.exit()
@@ -290,19 +590,32 @@ def play(name,url,image,plot):
        match=re.compile(regex).findall(holder)
        link=match[0]
     else:
-    
-       link =resolveurl.resolve(f_link)
+      
+       if 'mystream.to' in f_link:
+        f_link=f_link.replace('mystream.to/watch','mysembed.net')
+        link=resolve_mystram(f_link)
+       
+       elif not( 'magnet%3A' in f_link or 'magnet:' in f_link or '.torrent' in f_link):
+        logging.warning('RESOLVING')
+        logging.warning(f_link)
+        link =resolveurl.resolve(f_link)
+       else:
+        link=f_link
     video_data={}
     video_data['title']=name
     video_data['icon']=image
     video_data['plot']=(plot)
     video_data[u'mpaa']=unicode('heb')
+    logging.warning(link)
     listItem = xbmcgui.ListItem(video_data['title'], path=link) 
     listItem.setInfo(type='Video', infoLabels=video_data)
 
 
     listItem.setProperty('IsPlayable', 'true')
     ok=xbmcplugin.setResolvedUrl(handle=int(sys.argv[1]), succeeded=True, listitem=listItem)
+    xbmc.executebuiltin('Dialog.Close(okdialog, true)')
+    xbmc.sleep(2000)
+    xbmc.executebuiltin('Dialog.Close(okdialog, true)')
 def testlogin(url):
     import requests
 
@@ -388,7 +701,8 @@ try:
         description=urllib.unquote_plus(params["description"])
 except:
         pass
-   
+logging.warning('mode')
+logging.warning(mode)
 
 
 if mode==None or url==None or len(url)<1:

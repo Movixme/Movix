@@ -16,7 +16,7 @@
 
 <addon id="plugin.video.movixws"                                                                                                                                    
 	   name="Movix Live"                                                 
-	   version="1.4.4"                                                                                                                                        
+	   version="1.5.5"                                                                                                                                        
 	   provider-name="Movix">
   <requires>
     <import addon="xbmc.python" version="2.1.0"/>
